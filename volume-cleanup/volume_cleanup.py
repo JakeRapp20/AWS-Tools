@@ -1,4 +1,6 @@
 import boto3
+from delete_volumes import delete_available_volumes
+from calculate import calculate_gb_used, calculate_iops_used, filter_available_volumes
 
 
 # Builds session with access keys is AWS CONFIGURE
@@ -7,51 +9,69 @@ session = boto3.Session(profile_name='default')
 # Initializes boto3 ec2 for later use below
 ec2 = boto3.client ('ec2')
 
-
-
-# filters available volumes and returns thier volume id
-def filter_available_volumes():
-    response = ec2.describe_volumes(Filters=[{'Name': 'status','Values': ['available']}])
-    volume_ids = [volume['VolumeId'] for volume in response['Volumes']]
-    return volume_ids
-
-# deletes volume based on volume_id
-def delete_available_volumes(volume_id):
-    ec2.delete_volume(VolumeId=volume_id)
-    print(volume_id + " deleted!")
-
 # Retreives availiable Volumes
 available_volume_ids = filter_available_volumes()
 
-# Prints total amount of volumes
-print("Total unused EBS volumes: " + str(len(available_volume_ids)))
-
-# Deletes Available Volumes
-# for volume in available_volume_ids:
-#     delete_available_volumes(volume)
 
 
-################### Calculating Costs ############################
+
+def show_menu():
+    print("Main Menu:")
+    print("1. Calcluate EBS Cost Savings")
+    print("2. List EBS Volumes to be Deleted")
+    print("3. Delete Unused EBS Volumes")
+    print("4. Quit")
+
+def option1():
+    print("Calculating EBS Cost Savings")
+    available_volume_ids = filter_available_volumes()
+    total_unused_volumes = len(available_volume_ids)
+    total_gbs = (calculate_gb_used(available_volume_ids))
+    total_iops = calculate_iops_used(available_volume_ids, 50)
+
+    total_savings_per_year = (total_gbs * .9) + (total_iops * .005) * 12
+
+    print("Total unused volumes: " + str("{:,}".format(total_unused_volumes)))
+    print("Total unused EBS GBs: " + str(len(available_volume_ids)) + " GBs")
+    print("Total unused EBS IOPS: " + str("{:,}".format(total_iops)))
+    print("Total savings per year: $"+ (str("{:,.2f}".format(total_savings_per_year))))
+    
 
 
-def calculate_gb_used(volume_id):
-    response = ec2.describe_volumes(VolumeIds=volume_id)
-    total_gbs = sum([ i['Size'] for i in response['Volumes']])
-    return total_gbs
+def option2():
+    print("Listing EBS Volumes to be Deleted")
+    available_volume_ids = filter_available_volumes()
+    for volumes in available_volume_ids:
+        print(volumes, "will be deleted!")
 
-total_gbs = (calculate_gb_used(available_volume_ids))
+def option3():
+    print(" Deleting Unsused EBS Volumes")
+    available_volume_ids = filter_available_volumes()
+    for volumes in available_volume_ids:
+        delete_available_volumes(volumes)
 
-def calcuate_iops_used(volume_id, free_iops):
-    response = ec2.describe_volumes(VolumeIds=volume_id)
-    total_gp3_iops = sum([i['Iops'] - free_iops for i in response['Volumes'] if i['Iops'] > free_iops])
-    return total_gp3_iops
+# Main loop
+while True:
+    # Display the menu
+    show_menu()
 
-total_iops = calcuate_iops_used(available_volume_ids, 50)
+    # Get user input
+    choice = input("Enter your choice (1-4): ")
 
+    # Process the user's choice
+    if choice == '1':
+        option1()
+    elif choice == '2':
+        option2()
+    elif choice == '3':
+        option3()
+    elif choice == '4':
+        break
+    else:
+        print("Invalid option")
 
-total_savings_per_year = (total_gbs * .9) + (total_iops * .005) * 12
-
-print(total_savings_per_year)
+    # Wait for user input before going back to the main menu
+    input("Press Enter to return to main menu...")
 
 
 

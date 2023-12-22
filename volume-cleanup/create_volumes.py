@@ -1,8 +1,4 @@
 import boto3
-import json
-
-# Run this command first, will implement later. Probably boto3... I'm trying to minimlize packages needed to run. 
-# aws ec2 describe-volumes --query 'Volumes[?State==`available`].[VolumeId, Size, State, Iops]'  --output text | sed 's/\t/,/g' > volume.out
 
 session = boto3.Session(profile_name='default')
 
@@ -18,10 +14,9 @@ def create_volumes(size):
         Size=size,
         VolumeType='gp2',
         DryRun=False
-
 )
     return(response)
 
-for _ in range(5):
+for _ in range(20):
     response = create_volumes(10)
     print(response['VolumeId'], ": created!")

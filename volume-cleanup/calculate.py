@@ -1,45 +1,38 @@
-
-import csv
 import boto3
 
-# Run this command first, will implement later. Probably boto3... I'm trying to minimlize packages needed to run. 
-# aws ec2 describe-volumes --query 'Volumes[?State==`available`].[VolumeId, Size, State, Iops]'  --output text | sed 's/\t/,/g' > volume.out
-
-session = boto3.Session(profile_name='default')
+# Initializes boto3 ec2 for later use below
+ec2 = boto3.client ('ec2')
 
 
 
-
-total_gb = 0
-with open('volume.out') as f:
-    read = csv.reader(f)
-    for row in read:
-        total_gb += int(row[1])
-f.close()
-
-total_gb_saved = float(total_gb) * .10 * 12
-
-total_iops_difference = 0
-with open('volume.out') as f:
-    read = csv.reader(f)
-    for row in read:
-        if int(row[3]) > 3000:
-            difference = int(row[3]) - 3000 
-            total_iops_difference += difference
-f.close()
-
-total_iops_savings = .005 * total_iops_difference * 12
-
-grand_total_saved = total_iops_savings + total_gb_saved
-
-print ("Total GBs unused: " + "{:,}".format(total_gb))
-
-print("Total IOPS unused: " + "{:,}".format(total_iops_difference))
-
-print ("Total saved in EBS costs per year: $" + "{:,.2f}".format(total_gb_saved))
-
-print("Total saved in IOPS costs per year: $" + "{:,.2f}".format(total_iops_savings))
-
-print("Grand total saved per year: $" "{:,.2f}".format(grand_total_saved))
+def filter_available_volumes():
+    response = ec2.describe_volumes(Filters=[{'Name': 'status','Values': ['available']}])
+    volume_ids = [volume['VolumeId'] for volume in response['Volumes']]
+    return volume_ids
 
 
+def calculate_gb_used(volume_id):
+    response = ec2.describe_volumes(VolumeIds=volume_id)
+    total_gbs = sum([ i['Size'] for i in response['Volumes']])
+    return total_gbs
+
+
+
+def calculate_iops_used(volume_id, free_iops):
+    response = ec2.describe_volumes(VolumeIds=volume_id)
+    total_gp3_iops = sum([i['Iops'] - free_iops for i in response['Volumes'] if i['Iops'] > free_iops])
+    return total_gp3_iops
+
+
+# total_gbs = (calculate_gb_used(available_volume_ids))
+
+# # Prints total amount of volumes
+# print("Total unused EBS volumes: " + str(len(available_volume_ids)))
+
+
+# total_iops = calculate_iops_used(available_volume_ids, 50)
+
+
+# total_savings_per_year = (total_gbs * .9) + (total_iops * .005) * 12
+
+# print(total_savings_per_year)
